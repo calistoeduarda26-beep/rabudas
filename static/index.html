@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>rabudas — Entrar</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body class="auth-page">
+  <main class="card auth-card">
+    <header class="brand">
+      <h1>rabudas</h1>
+      <p class="muted">Deposita em cripto, levanta em Meticais.</p>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="login" role="tab">Entrar</button>
+      <button class="tab" data-tab="signup" role="tab">Criar conta</button>
+    </nav>
+
+    <form id="form-login" class="pane active" autocomplete="on">
+      <label>Email
+        <input type="email" name="email" required placeholder="tu@exemplo.com" />
+      </label>
+      <label>Palavra-passe
+        <input type="password" name="password" required minlength="8" placeholder="mínimo 8 caracteres" />
+      </label>
+      <button type="submit" class="primary">Entrar</button>
+    </form>
+
+    <form id="form-signup" class="pane">
+      <label>Nome completo
+        <input type="text" name="full_name" placeholder="Nome e apelido" />
+      </label>
+      <label>Email
+        <input type="email" name="email" required placeholder="tu@exemplo.com" />
+      </label>
+      <label>Palavra-passe
+        <input type="password" name="password" required minlength="8" placeholder="mínimo 8 caracteres" />
+      </label>
+      <button type="submit" class="primary">Criar conta</button>
+    </form>
+
+    <p id="auth-message" class="message" role="status"></p>
+    <p class="muted tiny">Taxa actual: <span id="rate">—</span> MT por USDT</p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/auth.js"></script>
+</body>
+</html>

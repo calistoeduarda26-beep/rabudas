@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>rabudas — Painel</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-inline"><strong>rabudas</strong></div>
+    <nav class="topbar-right">
+      <span id="whoami" class="muted"></span>
+      <a id="admin-link" class="ghost hidden" href="/admin.html">Admin</a>
+      <button id="logout" class="ghost">Sair</button>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <section class="balance-card">
+      <span class="muted">Saldo disponível</span>
+      <strong id="balance">0.00 MT</strong>
+      <span class="muted tiny">Taxa: <span id="rate">—</span> MT/USDT</span>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Depositar (cripto)</h2>
+        <form id="form-deposit">
+          <label>Valor em Meticais
+            <input type="number" name="amount_mt" min="100" step="0.01" value="1000" required />
+          </label>
+          <label>Moeda
+            <select name="pay_currency">
+              <option value="usdttrc20">USDT (TRC-20)</option>
+              <option value="usdterc20">USDT (ERC-20)</option>
+              <option value="btc">Bitcoin</option>
+            </select>
+          </label>
+          <p class="muted tiny">Vais enviar <strong id="quote-usdt">—</strong> USDT.</p>
+          <button type="submit" class="primary">Gerar endereço de pagamento</button>
+        </form>
+
+        <div id="payment-box" class="payment-box hidden">
+          <h3>Envia exactamente <span id="pay-amount"></span></h3>
+          <p class="mono" id="pay-address"></p>
+          <p class="muted tiny" id="pay-extra"></p>
+          <a id="pay-link" class="primary button-link" target="_blank" rel="noopener">Abrir página de pagamento</a>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Levantar (M-Pesa / e-Mola)</h2>
+        <form id="form-payout">
+          <label>Valor em Meticais
+            <input type="number" name="amount_mt" min="200" step="0.01" required />
+          </label>
+          <label>Método
+            <select name="method">
+              <option value="mpesa">M-Pesa (Vodacom)</option>
+              <option value="emola">e-Mola (Movitel)</option>
+            </select>
+          </label>
+          <label>Número de telefone
+            <input type="tel" name="phone" placeholder="84XXXXXXX" required />
+          </label>
+          <label>Titular da conta
+            <input type="text" name="holder_name" placeholder="Nome no M-Pesa" />
+          </label>
+          <button type="submit" class="primary">Pedir levantamento</button>
+        </form>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Depósitos</h2>
+      <div class="table-wrap">
+        <table id="table-payments">
+          <thead><tr><th>Data</th><th>Valor</th><th>Cripto</th><th>Estado</th><th>Creditado</th></tr></thead>
+          <tbody><tr><td colspan="5" class="muted">A carregar…</td></tr></tbody>
+        </table>
+      </div>
+      <button id="refresh-payments" class="ghost">Actualizar estados</button>
+    </section>
+
+    <section class="card">
+      <h2>Levantamentos</h2>
+      <div class="table-wrap">
+        <table id="table-payouts">
+          <thead><tr><th>Data</th><th>Valor</th><th>Método</th><th>Telefone</th><th>Estado</th></tr></thead>
+          <tbody><tr><td colspan="5" class="muted">A carregar…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/js/app.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
