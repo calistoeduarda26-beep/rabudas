@@ -51,6 +51,10 @@ WARN  rabudas.config ::   NOWPAYMENTS_IPN_SECRET     <vazio> - funcionalidade de
 
 ### Regras de segurança aplicadas no código
 
+- O GoTrue é chamado com `apikey: <API key do projecto>` e
+  `Authorization: Bearer <token do utilizador>`. Nunca o contrário — mandar o
+  JWT do utilizador no `apikey` faz a Supabase responder 401 e parte o
+  registo/login (há teste que fixa isto).
 - `SUPABASE_SECRET_KEY`, `NOWPAYMENTS_API_KEY` e `APP_SECRET_KEY` são
   `pydantic.SecretStr`: não aparecem em `repr()`, em respostas da API nem em
   logs. Um filtro de logging (`app/logging_conf.py`) apaga estes valores de
@@ -73,8 +77,23 @@ WARN  rabudas.config ::   NOWPAYMENTS_IPN_SECRET     <vazio> - funcionalidade de
 
 ## 2. Base de dados
 
-Abre **Supabase → SQL Editor → New query**, cola o conteúdo de
-[`supabase/schema.sql`](supabase/schema.sql) e corre. Cria:
+**Opção A** — abre **Supabase → SQL Editor → New query**, cola o conteúdo de
+[`supabase/schema.sql`](supabase/schema.sql) e corre.
+
+**Opção B** — põe `POSTGRES_URL` no `.env` (porta 5432, não a 6543 do pgbouncer)
+e corre:
+
+```bash
+pip install "psycopg[binary]"
+python scripts/init_db.py --check   # ver o que existe
+python scripts/init_db.py           # aplicar o schema
+```
+
+Sem este passo **não há tabelas**: o registo cria o utilizador em `auth.users`
+mas não consegue criar o perfil, e a API responde `503` com a indicação para
+correr o `schema.sql`.
+
+O schema cria:
 
 `profiles`, `payments`, `payouts`, `login_logs`, `settings`, as funções
 atómicas (`credit_balance`, `debit_balance`, `request_payout`, `settle_payout`)

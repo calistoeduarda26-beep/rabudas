@@ -30,6 +30,11 @@ class FakeSupabase:
             for table, rows in seed.items():
                 self.tables.setdefault(table, []).extend(rows)
         self.rpc_enabled = rpc_enabled
+        # API keys validas do "projecto". O GoTrue real valida o header apikey
+        # contra elas; a dobra anterior ignorava-o e foi isso que deixou passar
+        # o bug de mandar o JWT do utilizador no apikey.
+        self.api_keys = {"sb_secret_teste", "sb_publishable_teste"}
+        self.auth_requests: list[tuple[str, str, str]] = []
         self.requests: list[tuple[str, str]] = []
         self.users: dict[str, dict] = {}          # access_token -> user
         self.credentials: dict[str, str] = {}     # email -> password
@@ -104,7 +109,17 @@ class FakeSupabase:
 
         table = remainder.lstrip("/")
         if table not in self.tables:
-            return httpx.Response(404, json={"message": f"tabela {table} nao existe"})
+            # Mensagem igual a do PostgREST real (PGRST205), para o codigo
+            # que detecta "schema por correr" ser exercitado a serio.
+            return httpx.Response(
+                404,
+                json={
+                    "code": "PGRST205",
+                    "message": f"Could not find the table 'public.{table}' in the schema cache",
+                    "hint": "Perhaps you meant to find the table ...",
+                    "details": None,
+                },
+            )
 
         params = list(request.url.params.multi_items())
         filters = self._parse_filters(params)
@@ -167,6 +182,14 @@ class FakeSupabase:
     def _handle_auth(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         body = json.loads(request.content or b"{}") if request.content else {}
+
+        apikey = request.headers.get("apikey", "")
+        authorization = request.headers.get("authorization", "")
+        self.auth_requests.append((path, apikey, authorization))
+        if apikey not in self.api_keys:
+            return httpx.Response(
+                401, json={"code": "invalid_api_key", "message": "Invalid API key"}
+            )
 
         if path.endswith("/signup"):
             email = body.get("email", "")

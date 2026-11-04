@@ -28,7 +28,7 @@ from app.deps import (
 )
 from app.schemas import SessionResponse, SignInRequest, SignUpRequest
 from app.security import login_limiter, mask_email, user_cache
-from app.services import ensure_profile
+from app.services import BusinessError, ensure_profile
 
 log = logging.getLogger("rabudas.auth")
 
@@ -69,6 +69,13 @@ def write_login_log(
         # Falhar o login por causa do log seria pior do que perder o log.
         log.warning("Nao foi possivel gravar login_logs (%s)", exc.status_code)
 
+
+def ensure_profile_or_http(db: SupabaseClient, user_id: str, email: str, full_name: str = "") -> dict:
+    """`ensure_profile` com os erros de negocio traduzidos para HTTP."""
+    try:
+        return ensure_profile(db, user_id, email, full_name)
+    except BusinessError as exc:
+        raise HTTPException(status_code=503, detail=exc.message) from exc
 
 def client_ip(request: Request) -> str:
     forwarded = request.headers.get("x-forwarded-for", "")
@@ -131,7 +138,7 @@ def signup(
             detail="Conta criada, mas nao foi devolvida sessao. Faz login para continuar.",
         )
 
-    ensure_profile(db, user_id, body.email, body.full_name)
+    ensure_profile_or_http(db, user_id, body.email, body.full_name)
     write_login_log(db, request, email=body.email, success=True, reason="signup", user_id=user_id)
     login_limiter.clear(key)
 
@@ -193,7 +200,7 @@ def login(
         raise HTTPException(status_code=502, detail="Resposta inesperada da Supabase.")
 
     metadata = user.get("user_metadata") or {}
-    profile = ensure_profile(db, user_id, body.email, metadata.get("full_name", ""))
+    profile = ensure_profile_or_http(db, user_id, body.email, metadata.get("full_name", ""))
     write_login_log(db, request, email=body.email, success=True, reason="login", user_id=user_id)
     login_limiter.clear(key)
     log.info("Login ok: %s", mask_email(body.email))
@@ -230,7 +237,7 @@ def exchange_session(
     user_id = user.get("id")
     email = user.get("email") or ""
     metadata = user.get("user_metadata") or {}
-    profile = ensure_profile(db, user_id, email, metadata.get("full_name", ""))
+    profile = ensure_profile_or_http(db, user_id, email, metadata.get("full_name", ""))
     write_login_log(db, request, email=email, success=True, reason="session", user_id=user_id)
 
     _set_cookie(response, make_session_cookie({"id": user_id, "access_token": access_token}, settings), secure)

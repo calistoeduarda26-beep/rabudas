@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.config import ConfigError, Settings
 from app.deps import request_base_url
+from tests.fakes import FakeNOWPayments
 
 
 def test_main_exporta_app_ao_nivel_do_modulo():
@@ -128,3 +129,90 @@ def test_cookie_secure_activa_se_em_producao(settings):
 
     local = settings.model_copy(update={"ENVIRONMENT": "development", "BASE_URL": ""})
     assert cookie_secure(PedidoHttp(), local) is False
+
+
+# --------------------------------------------------------------------------- #
+# Regressao: o header `apikey` nunca pode levar o JWT do utilizador
+# --------------------------------------------------------------------------- #
+def test_get_user_envia_a_api_key_do_projecto_e_nao_o_jwt(fake_sb):
+    """Bug real: o apikey levava o access token do utilizador e o GoTrue
+    respondia 401, partindo o registo (nada em `profiles`) e o login
+    ("sessao expirada")."""
+    db = fake_sb.client()
+    criado = fake_sb.add_user("cliente@exemplo.mz")
+
+    user = db.get_user(criado["access_token"])
+
+    assert user["id"] == criado["user"]["id"]
+    assert user["email"] == "cliente@exemplo.mz"
+
+    path, apikey, authorization = fake_sb.auth_requests[-1]
+    assert path.endswith("/user")
+    assert apikey == "sb_secret_teste", "o apikey tem de ser uma API key do projecto"
+    assert apikey != criado["access_token"]
+    assert authorization == f"Bearer {criado['access_token']}"
+
+
+def test_signup_e_login_usam_a_chave_publica_no_apikey(fake_sb):
+    """O registo/login do lado do servidor usam a chave PUBLICA, nunca a secreta."""
+    from app.config import Settings
+    from app.routers.auth import _auth_call, set_auth_transport
+
+    import httpx
+
+    cfg = Settings(
+        SUPABASE_URL="https://fake.supabase.co",
+        SUPABASE_PUBLISHABLE_KEY="sb_publishable_teste",
+        SUPABASE_SECRET_KEY="sb_secret_teste",
+        NOWPAYMENTS_API_KEY="np",
+        APP_SECRET_KEY="a" * 64,
+    )
+    set_auth_transport(httpx.MockTransport(fake_sb.handle))
+    _auth_call(cfg, "POST", "/signup", json_body={"email": "novo@x.mz", "password": "password123"})
+
+    path, apikey, _ = fake_sb.auth_requests[-1]
+    assert path.endswith("/signup")
+    assert apikey == "sb_publishable_teste"
+
+
+def test_apikey_invalido_levanta_erro_de_supabase(fake_sb):
+    import httpx
+
+    from app.db import SupabaseClient, SupabaseError
+
+    db = SupabaseClient(
+        "https://fake.supabase.co", "chave-que-nao-e-api-key", transport=httpx.MockTransport(fake_sb.handle)
+    )
+    with pytest.raises(SupabaseError) as erro:
+        db.get_user("token-qualquer")
+    assert erro.value.status_code == 401
+
+
+def test_tabela_profiles_em_falta_da_erro_claro_e_nao_sessao_expirada(fake_sb, settings):
+    """Se o schema nao estiver corrido, o utilizador tem de ver isso -
+    nao um "sessao expirada" que nao explica nada."""
+    from fastapi.testclient import TestClient
+
+    from app import db as db_module
+    from app import nowpayments as np_module
+    from app.config import get_settings
+    from app.deps import db_dep
+    from main import create_app
+
+    fake_sb.add_user("cliente@exemplo.mz")
+    del fake_sb.tables["profiles"]
+
+    db_module.set_supabase_client(fake_sb.client())
+    np_module.set_nowpayments_client(FakeNOWPayments().client())
+    app = create_app(settings)
+    app.dependency_overrides[db_dep] = lambda: fake_sb.client()
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    cliente = TestClient(app, raise_server_exceptions=False)
+    resposta = cliente.post(
+        "/api/auth/session",
+        json={"access_token": next(iter(fake_sb.users))},
+    )
+    assert resposta.status_code == 503, resposta.text
+    assert "schema.sql" in resposta.json()["detail"]
+    db_module.set_supabase_client(None)

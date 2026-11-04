@@ -65,11 +65,16 @@ def resolve_session_user(db: SupabaseClient, access_token: str) -> Optional[dict
     try:
         user = db.get_user(access_token)
     except SupabaseError as exc:
-        log.info("Sessao invalida (%s)", exc.status_code)
-        return None
+        if exc.status_code in (400, 401, 403):
+            log.info("Sessao invalida (%s)", exc.status_code)
+            return None
+        # 5xx e afins nao sao culpa do utilizador: nao fingir "sessao expirada",
+        # porque isso esconde uma avaria real (foi o que aconteceu com o apikey).
+        log.error("Supabase auth indisponivel ao validar sessao (%s): %s", exc.status_code, exc.message)
+        raise
     except Exception as exc:  # rede
-        log.warning("Nao foi possivel validar a sessao: %s", exc)
-        return None
+        log.warning("Sem acesso ao Supabase Auth para validar a sessao: %s", exc)
+        raise
     if not user or not user.get("id"):
         return None
     user_cache.set(fingerprint, user)
@@ -123,6 +128,8 @@ def current_user(
     metadata = user.get("user_metadata") or {}
     try:
         profile = ensure_profile(db, user["id"], email, metadata.get("full_name", ""))
+    except BusinessError as exc:
+        raise translate_business_error(exc) from exc
     except SupabaseError as exc:
         raise HTTPException(status_code=503, detail="Base de dados indisponivel.") from exc
 
@@ -159,6 +166,8 @@ def translate_business_error(exc: BusinessError) -> HTTPException:
         code = status.HTTP_404_NOT_FOUND
     elif exc.code in {"np_error", "race"}:
         code = status.HTTP_502_BAD_GATEWAY
+    elif exc.code == "schema_missing":
+        code = status.HTTP_503_SERVICE_UNAVAILABLE
     return HTTPException(status_code=code, detail=exc.message)
 
 

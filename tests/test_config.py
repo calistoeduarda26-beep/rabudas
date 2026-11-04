@@ -91,7 +91,11 @@ def test_env_real_existe_com_valores():
     assert settings.SUPABASE_PUBLISHABLE_KEY.startswith("sb_publishable_")
     assert len(settings.APP_SECRET_KEY.get_secret_value()) >= 64
     assert float(settings.RATE_MT_PER_USDT) == 80
-    assert settings.SUPABASE_URL == "https://tegowntlzozemmmzvesm.supabase.co"
+    # O projecto concreto varia por developer; o que importa e a forma.
+    assert settings.SUPABASE_URL.startswith("https://")
+    assert settings.SUPABASE_URL.endswith(".supabase.co")
+    assert settings.supabase_rest_url == f"{settings.SUPABASE_URL}/rest/v1"
+    assert settings.supabase_auth_url == f"{settings.SUPABASE_URL}/auth/v1"
 
 
 # --------------------------------------------------------------------------- #
