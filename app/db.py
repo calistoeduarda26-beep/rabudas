@@ -265,8 +265,14 @@ class SupabaseClient:
     def auth_request(
         self, method: str, path: str, *, json_body: Any = None, params: Any = None, token: str = ""
     ) -> Any:
-        key = token or self.secret_key
-        headers = {"apikey": key, "Authorization": f"Bearer {token or self.secret_key}"}
+        # O header `apikey` tem de ser SEMPRE uma API key do projecto
+        # (sb_secret_.../sb_publishable_...). O token do utilizador vai apenas
+        # no `Authorization`. Mandar o JWT no `apikey` faz o GoTrue responder
+        # 401 ("Invalid API key"), o que partia o login e o registo.
+        headers = {
+            "apikey": self.secret_key,
+            "Authorization": f"Bearer {token or self.secret_key}",
+        }
         with httpx.Client(
             base_url=f"{self.base_url}/auth/v1", timeout=DEFAULT_TIMEOUT, transport=self._http._transport
         ) as auth_http:

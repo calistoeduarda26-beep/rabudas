@@ -57,8 +57,27 @@ def _rpc_missing(exc: SupabaseError) -> bool:
 # --------------------------------------------------------------------------- #
 # Perfis e taxa
 # --------------------------------------------------------------------------- #
+def _table_missing(exc: SupabaseError) -> bool:
+    texto = f"{exc.message} {exc.payload}".lower()
+    return (
+        exc.status_code == 404
+        and ("could not find the table" in texto or "pgrst205" in texto or "does not exist" in texto)
+    )
+
+
+SCHEMA_MISSING_MESSAGE = (
+    "A tabela 'profiles' nao existe neste projecto Supabase. "
+    "Corre supabase/schema.sql no SQL Editor da Supabase."
+)
+
+
 def ensure_profile(db: SupabaseClient, user_id: str, email: str, full_name: str = "") -> dict:
-    profile = db.select_one("profiles", id=user_id)
+    try:
+        profile = db.select_one("profiles", id=user_id)
+    except SupabaseError as exc:
+        if _table_missing(exc):
+            raise BusinessError(SCHEMA_MISSING_MESSAGE, "schema_missing") from exc
+        raise
     if profile:
         if full_name and not profile.get("full_name"):
             db.update_where("profiles", {"full_name": full_name}, id=user_id)
@@ -74,8 +93,10 @@ def ensure_profile(db: SupabaseClient, user_id: str, email: str, full_name: str 
     try:
         rows = db.insert("profiles", payload)
         return rows[0] if rows else payload
-    except SupabaseError as exc:  # concorrencia: outro pedido ja criou a linha
-        if exc.status_code == 409:
+    except SupabaseError as exc:
+        if _table_missing(exc):
+            raise BusinessError(SCHEMA_MISSING_MESSAGE, "schema_missing") from exc
+        if exc.status_code == 409:  # concorrencia: outro pedido ja criou a linha
             return db.select_one("profiles", id=user_id) or payload
         raise
 
