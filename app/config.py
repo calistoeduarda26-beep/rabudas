@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     APP_SECRET_KEY: SecretStr = SecretStr("")
     BASE_URL: str = ""
     RATE_MT_PER_USDT: float = Field(default=80.0, gt=0)
+    #: Deposito minimo em USD. O admin pode alterar na pagina de administracao
+    #: (tabela `settings`, chave `min_deposit_usd`); este e o valor por omissao.
+    MIN_DEPOSIT_USD: float = Field(default=10.0, gt=0, le=100000)
 
     # --- Servidor ---
     ENVIRONMENT: str = "development"
@@ -167,6 +170,7 @@ class Settings(BaseSettings):
             "supabasePublishableKey": self.SUPABASE_PUBLISHABLE_KEY,
             "baseUrl": self.BASE_URL,
             "rateMtPerUsdt": self.RATE_MT_PER_USDT,
+            "minDepositUsd": self.MIN_DEPOSIT_USD,
             "ipnEnabled": self.ipn_enabled,
         }
 

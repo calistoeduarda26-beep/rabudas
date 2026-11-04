@@ -101,6 +101,12 @@ insert into public.settings (key, value)
 values ('rate_mt_per_usdt', '80')
 on conflict (key) do nothing;
 
+-- Deposito minimo em USD (o admin altera na pagina de administracao).
+-- Em falta, o backend usa MIN_DEPOSIT_USD do .env (10 por omissao).
+insert into public.settings (key, value)
+values ('min_deposit_usd', '10')
+on conflict (key) do nothing;
+
 -- ============================================================
 -- Funcoes atomicas (usadas pelo backend; evitam condicoes de corrida)
 -- ============================================================

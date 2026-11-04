@@ -11,7 +11,14 @@ from app.config import Settings, get_settings
 from app.db import SupabaseClient, SupabaseError
 from app.deps import current_admin, db_dep
 from app.nowpayments import NOWPaymentsClient, NOWPaymentsError, get_nowpayments
-from app.schemas import AdminUserRow, LoginLogOut, PayoutDecisionRequest, RateUpdateRequest, StatsOut
+from app.schemas import (
+    AdminUserRow,
+    LoginLogOut,
+    MinDepositUpdateRequest,
+    PayoutDecisionRequest,
+    RateUpdateRequest,
+    StatsOut,
+)
 from app.services import BusinessError, decide_payout, list_login_logs, list_payments, list_payouts, stats
 from app.routers.payments import payment_out
 from app.routers.payouts import payout_out
@@ -169,6 +176,46 @@ def admin_set_rate(
         ) from exc
     log.info("Admin %s definiu taxa %s MT/USDT", admin["email"], body.rate_mt_per_usdt)
     return {"rate_mt_per_usdt": body.rate_mt_per_usdt}
+
+
+@router.get("/min-deposit")
+def admin_get_min_deposit(
+    admin: dict = Depends(current_admin),
+    db: SupabaseClient = Depends(db_dep),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    from app.services import get_min_deposit_mt, get_min_deposit_usd, get_rate
+
+    min_usd = get_min_deposit_usd(db, settings)
+    return {
+        "min_deposit_usd": float(min_usd),
+        "min_deposit_mt": float(get_min_deposit_mt(db, settings)),
+        "rate_mt_per_usdt": float(get_rate(db, settings)),
+        "env_default": float(settings.MIN_DEPOSIT_USD),
+    }
+
+
+@router.put("/min-deposit", response_model=dict)
+def admin_set_min_deposit(
+    body: MinDepositUpdateRequest,
+    admin: dict = Depends(current_admin),
+    db: SupabaseClient = Depends(db_dep),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    from app.services import get_min_deposit_mt, get_rate
+
+    try:
+        db.upsert("settings", {"key": "min_deposit_usd", "value": str(body.min_deposit_usd)})
+    except SupabaseError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Nao foi possivel gravar o minimo. Corre supabase/schema.sql primeiro.",
+        ) from exc
+    log.info("Admin %s definiu deposito minimo %s USD", admin["email"], body.min_deposit_usd)
+    return {
+        "min_deposit_usd": body.min_deposit_usd,
+        "min_deposit_mt": float(get_min_deposit_mt(db, settings)),
+    }
 
 
 @router.get("/health-check")

@@ -42,6 +42,21 @@
     </section>
 
     <section class="card">
+      <h2>Depósito mínimo</h2>
+      <form id="form-min-deposit" class="row">
+        <label>Mínimo de depósito (USD)
+          <input type="number" name="min_deposit_usd" step="0.01" min="0.01" required />
+        </label>
+        <button type="submit" class="primary">Guardar</button>
+      </form>
+      <p class="muted tiny">
+        Equivale a <strong id="min-deposit-mt">—</strong> MT à taxa actual
+        (<span id="min-deposit-rate">—</span> MT/USDT).
+        Por omissão (do <code>.env</code>): <span id="env-min-deposit">—</span> USD
+      </p>
+    </section>
+
+    <section class="card">
       <h2>Levantamentos pendentes</h2>
       <div class="table-wrap">
         <table id="table-payouts">
