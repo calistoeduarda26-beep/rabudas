@@ -168,6 +168,10 @@ def translate_business_error(exc: BusinessError) -> HTTPException:
         code = status.HTTP_502_BAD_GATEWAY
     elif exc.code == "schema_missing":
         code = status.HTTP_503_SERVICE_UNAVAILABLE
+    elif exc.code == "too_small":
+        # Valor fora dos limites: e um erro de validacao do pedido, como era
+        # quando o minimo era verificado no modelo Pydantic (422).
+        code = status.HTTP_422_UNPROCESSABLE_ENTITY
     return HTTPException(status_code=code, detail=exc.message)
 
 

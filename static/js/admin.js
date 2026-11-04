@@ -173,10 +173,42 @@
       await App.api("/api/admin/rate", { method: "PUT", body: { rate_mt_per_usdt: value } });
       App.toast(`Taxa definida para ${value} MT/USDT.`, "ok");
       loadStats();
+      loadMinDeposit();
     } catch (e) {
       App.toast(e.message, "error");
     }
   });
+
+  /* Deposito minimo: guardado em USD, mostrado tambem em MT a taxa actual. */
+  async function loadMinDeposit() {
+    try {
+      const m = await App.api("/api/admin/min-deposit");
+      document.querySelector('[name="min_deposit_usd"]').value = m.min_deposit_usd;
+      document.getElementById("min-deposit-mt").textContent = App.money(m.min_deposit_mt).replace(" MT", "");
+      document.getElementById("min-deposit-rate").textContent = m.rate_mt_per_usdt;
+      document.getElementById("env-min-deposit").textContent = m.env_default;
+    } catch (e) {
+      App.toast(e.message, "error");
+    }
+  }
+
+  document.getElementById("form-min-deposit").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const value = Number(new FormData(event.target).get("min_deposit_usd"));
+    try {
+      const r = await App.api("/api/admin/min-deposit", {
+        method: "PUT",
+        body: { min_deposit_usd: value },
+      });
+      App.toast(`Depósito mínimo definido para ${value} USD.`, "ok");
+      document.getElementById("min-deposit-mt").textContent = App.money(r.min_deposit_mt).replace(" MT", "");
+      loadStats();
+    } catch (e) {
+      App.toast(e.message, "error");
+    }
+  });
+
+  loadMinDeposit();
 
   loadStats();
   loadHealth();

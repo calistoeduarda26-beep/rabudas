@@ -85,6 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "service": "rabudas",
             "environment": cfg.ENVIRONMENT,
             "rate_mt_per_usdt": cfg.RATE_MT_PER_USDT,
+            "min_deposit_usd": cfg.MIN_DEPOSIT_USD,
             "ipn_enabled": cfg.ipn_enabled,
             "base_url": cfg.BASE_URL or "(derivado do pedido)",
             "static_dir_found": STATIC_DIR.is_dir(),
@@ -93,8 +94,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/config", tags=["meta"])
     def public_config() -> dict:
-        """Unica configuracao entregue ao navegador - so valores publicos."""
-        return cfg.public_client_config()
+        """Unica configuracao entregue ao navegador - so valores publicos.
+
+        O minimo de deposito e o unico campo que vem da base de dados (o admin
+        pode altera-lo); falha em silencio para o `.env` se a base estiver em
+        baixo, para nunca bloquear o carregamento da pagina.
+        """
+        config = cfg.public_client_config()
+        try:
+            from app.db import get_supabase
+            from app.services import get_min_deposit_mt
+
+            config["minDepositMt"] = float(get_min_deposit_mt(get_supabase(cfg), cfg))
+        except Exception as exc:  # base em baixo, schema em falta, rede
+            log.warning("Minimo de deposito do .env (sem base de dados): %s", exc)
+            config["minDepositMt"] = round(cfg.MIN_DEPOSIT_USD * cfg.RATE_MT_PER_USDT, 2)
+        return config
 
     @app.exception_handler(SupabaseError)
     async def supabase_error_handler(request: Request, exc: SupabaseError) -> JSONResponse:  # noqa: ARG001

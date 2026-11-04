@@ -64,8 +64,9 @@ class PaymentCreateRequest(BaseModel):
     @classmethod
     def _amount(cls, v: float) -> float:
         amount = normalize_mt(v)
-        if amount < 100:
-            raise ValueError("O deposito minimo e de 100 MT.")
+        # O minimo de deposito e configuravel (em USD) e depende da taxa do
+        # momento, por isso e validado em `services.create_payment`, que tem
+        # acesso a base de dados. Aqui fica so o limite maximo, que e fixo.
         if amount > 1_000_000:
             raise ValueError("O deposito maximo por transacao e de 1.000.000 MT.")
         return float(amount)
@@ -136,6 +137,12 @@ class PayoutDecisionRequest(BaseModel):
 # --------------------------------------------------------------------------- #
 class RateUpdateRequest(BaseModel):
     rate_mt_per_usdt: float = Field(gt=0, le=100000)
+
+
+class MinDepositUpdateRequest(BaseModel):
+    """Deposito minimo, definido em USD (o admin ve tambem o equivalente em MT)."""
+
+    min_deposit_usd: float = Field(gt=0, le=100000)
 
 
 class AdminUserRow(BaseModel):

@@ -37,6 +37,7 @@ TEST_SETTINGS = Settings(
     APP_SECRET_KEY=TEST_APP_SECRET,
     BASE_URL="http://localhost:8000",
     RATE_MT_PER_USDT=80,
+    MIN_DEPOSIT_USD=10,
     ENVIRONMENT="test",
 )
 

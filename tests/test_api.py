@@ -162,6 +162,52 @@ def test_deposito_minimo_validado(client, seeded):
     assert "minimo" in str(resposta.json()).lower()
 
 
+def test_deposito_minimo_e_de_10_dolares_ou_seja_800_mt(client, seeded, fake_np):
+    """O minino e definido em USD: 10 USD a 80 MT/USDT sao 800 MT.
+
+    Regressao: se alguem voltar a comparar o valor em MT com o numero 10, o
+    deposito de 100 MT (que sao 1.25 USD) passaria a ser aceite.
+    """
+    login(client, CLIENTE)
+
+    # 100 MT = 1.25 USD -> abaixo do minimo de 10 USD.
+    baixo = client.post("/api/payments", json={"amount_mt": 100})
+    assert baixo.status_code == 422, baixo.text
+    detalhe = baixo.json()["detail"].lower()
+    assert "minimo" in detalhe
+    assert "10" in detalhe  # diz o minimo em USD
+    assert "800" in detalhe  # e o equivalente em MT
+
+    # 800 MT = 10.00 USD -> aceite.
+    ok = client.post("/api/payments", json={"amount_mt": 800})
+    assert ok.status_code == 201, ok.text
+    assert ok.json()["amount_usdt"] == "10.00"
+
+
+def test_minimo_configuravel_pelo_admin(client, seeded, admin_user, fake_sb):
+    """O admin muda o minimo em USD e a validacao acompanha."""
+    login(client, ADMIN)
+    resposta = client.put("/api/admin/min-deposit", json={"min_deposit_usd": 20})
+    assert resposta.status_code == 200, resposta.text
+    assert resposta.json()["min_deposit_usd"] == 20
+    assert resposta.json()["min_deposit_mt"] == 1600.0
+
+    # 800 MT (10 USD) deixa de passar; 1600 MT (20 USD) passa.
+    assert client.post("/api/payments", json={"amount_mt": 800}).status_code == 422
+    assert client.post("/api/payments", json={"amount_mt": 1600}).status_code == 201
+
+
+def test_minimo_do_admin_aparece_em_api_config(client, seeded, admin_user):
+    login(client, ADMIN)
+    resposta = client.put("/api/admin/min-deposit", json={"min_deposit_usd": 25})
+    assert resposta.status_code == 200, resposta.text
+    config = client.get("/api/config").json()
+    # minDepositUsd continua a ser o valor do .env (config estatica); o que o
+    # admin define na base de dados chega ao browser em minDepositMt.
+    assert config["minDepositUsd"] == 10.0
+    assert config["minDepositMt"] == 2000.0
+
+
 def test_ipn_com_assinatura_invalida_e_recusado(client, seeded, fake_sb):
     login(client, CLIENTE)
     pagamento = client.post("/api/payments", json={"amount_mt": 1000}).json()

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import secrets
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 from typing import Any, Optional
 
 from app.config import Settings
@@ -127,6 +127,40 @@ def get_rate(db: SupabaseClient, settings: Settings) -> Decimal:
     return Decimal(str(settings.RATE_MT_PER_USDT))
 
 
+def get_min_deposit_usd(db: SupabaseClient, settings: Settings) -> Decimal:
+    """Deposito minimo em USD: valor da tabela `settings` com fallback ao `.env`.
+
+    O valor e guardado em dolares (e o que o admin escreve na administracao) e
+    convertido para Meticais com a taxa do momento, por isso o limite em MT
+    acompanha a taxa em vez de ficar desactualizado.
+    """
+    try:
+        row = db.select_one("settings", key="min_deposit_usd")
+        if row and row.get("value") not in (None, ""):
+            value = Decimal(str(row["value"]))
+            if value > 0:
+                return value
+    except SupabaseError as exc:
+        log.warning(
+            "Nao foi possivel ler settings (%s); a usar MIN_DEPOSIT_USD do .env", exc.status_code
+        )
+    except Exception as exc:  # rede em baixo, DNS, timeout
+        log.warning("Sem acesso a Supabase (%s); a usar MIN_DEPOSIT_USD do .env", exc)
+    return Decimal(str(settings.MIN_DEPOSIT_USD))
+
+
+def get_min_deposit_mt(db: SupabaseClient, settings: Settings) -> Decimal:
+    """Deposito minimo em Meticais = minimo em USD x taxa actual.
+
+    Arredonda POR CIMA para o Metical inteiro seguinte: com 80 MT/USDT, 10 USD
+    dao 800.00 MT e o valor e aceite; com uma taxa fraccionaria nunca acontece
+    rejeitar um valor que, visto em USD, e exactamente o minimo.
+    """
+    rate = get_rate(db, settings)
+    min_usd = get_min_deposit_usd(db, settings)
+    return (min_usd * rate).to_integral_value(rounding=ROUND_CEILING)
+
+
 def balance_of(profile: dict) -> Decimal:
     return normalize_mt(profile.get("balance_mt") or 0)
 
@@ -221,6 +255,17 @@ def create_payment(
     rate = get_rate(db, settings)
     amount_mt = normalize_mt(request.amount_mt)
     amount_usdt = mt_to_usdt(amount_mt, rate)
+
+    # Minimo configuravel (admin), definido em USD e convertido a taxa actual.
+    min_usd = get_min_deposit_usd(db, settings)
+    min_mt = get_min_deposit_mt(db, settings)
+    if amount_usdt < min_usd:
+        raise BusinessError(
+            f"O deposito minimo e de {min_usd:.2f} USD ({min_mt:,.0f} MT a taxa actual).".replace(
+                ",", " "
+            ),
+            "too_small",
+        )
     if amount_usdt < Decimal("0.01"):
         raise BusinessError("Valor demasiado baixo para pagamento em cripto.", "too_small")
 

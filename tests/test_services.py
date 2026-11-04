@@ -129,7 +129,7 @@ def test_ipn_finished_credita_saldo_uma_vez(db, fake_np, fake_sb, settings):
 def test_ipn_waiting_nao_credita(db, fake_np, fake_sb, settings):
     seed_profile(fake_sb)
     linha = create_payment(
-        db, fake_np.client(), settings, user_id=USER_ID, email=EMAIL, request=payment_request(500)
+        db, fake_np.client(), settings, user_id=USER_ID, email=EMAIL, request=payment_request(800)
     )
     actualizado = handle_ipn(db, {"order_id": linha["order_id"], "payment_status": "waiting"})
     assert actualizado["status"] == "pending"
@@ -161,7 +161,7 @@ def test_list_payments_filtra_por_utilizador(db, fake_np, fake_sb, settings):
     seed_profile(fake_sb)
     create_payment(db, fake_np.client(), settings, user_id=USER_ID, email=EMAIL, request=payment_request(1000))
     outro = "22222222-2222-2222-2222-222222222222"
-    create_payment(db, fake_np.client(), settings, user_id=outro, email="outro@x.mz", request=payment_request(300))
+    create_payment(db, fake_np.client(), settings, user_id=outro, email="outro@x.mz", request=payment_request(900))
     meus = list_payments(db, user_id=USER_ID)
     assert len(meus) == 1
     assert meus[0]["amount_mt"] == "1000.00"
