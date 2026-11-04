@@ -64,7 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     _register_secret_redaction(cfg)
 
     app = FastAPI(
-        title="rabudas API",
+        title="LubraCrypto API",
         version="1.0.0",
         description="Depositos em cripto (NOWPayments) e levantamentos em Meticais.",
         lifespan=lifespan,
@@ -146,7 +146,7 @@ def _build_default_app() -> FastAPI:
         # guardamos a mensagem numa variavel propria para as closures abaixo.
         motivo = str(exc)
 
-        broken = FastAPI(title="rabudas API (configuracao em falta)")
+        broken = FastAPI(title="LubraCrypto API (configuracao em falta)")
 
         @broken.get("/health")
         def broken_health() -> JSONResponse:
