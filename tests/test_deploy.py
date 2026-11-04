@@ -31,6 +31,10 @@ def test_vercel_json_aponta_para_main_py():
     assert config["builds"][0]["src"] == "main.py"
     assert config["builds"][0]["use"] == "@vercel/python"
     assert config["routes"] == [{"src": "/(.*)", "dest": "main.py"}]
+    # A API da Vercel rejeita `functions` juntamente com `builds`:
+    # "The `functions` property cannot be used in conjunction with the `builds` property."
+    assert "functions" not in config
+    assert "rewrites" not in config
 
 
 def test_config_incompleta_sobe_app_com_503_em_vez_de_rebentar(monkeypatch):
