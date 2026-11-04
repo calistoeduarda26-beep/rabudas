@@ -30,8 +30,8 @@ variável obrigatória, a aplicação **não arranca** e diz exactamente qual fa
 | `SUPABASE_PUBLISHABLE_KEY` (`sb_publishable_…`) | navegador (login/registo) | sim |
 | `SUPABASE_SECRET_KEY` (`sb_secret_…`) | **só backend** | sim |
 | `APP_SECRET_KEY` | só backend (sessões assinadas) | sim, ≥ 32 chars |
-| `BASE_URL` | ambos | sim |
-| `RATE_MT_PER_USDT` | ambos (por omissão 80) | sim |
+| `BASE_URL` | ambos | não (derivado do pedido) |
+| `RATE_MT_PER_USDT` | ambos (por omissão 80) | não |
 
 Validar a configuração sem arrancar o servidor:
 
@@ -86,7 +86,41 @@ atómicas — recomendado em produção.
 
 ---
 
-## 3. Arrancar
+## 3. Deploy na Vercel
+
+O projecto já traz `vercel.json` (builder `@vercel/python` em `main.py`, com
+todas as rotas a apontar para a função) e `main.py` exporta uma instância
+`app` ao nível do módulo — é isso que a Vercel procura; sem ela o build falha
+com `FASTAPI_ENTRYPOINT_NOT_FOUND`.
+
+```bash
+vercel link && vercel --prod
+```
+
+Variáveis a definir em **Project → Settings → Environment Variables**
+(as da Supabase já lá estão se ligaste a integração):
+
+| Variável | Notas |
+| --- | --- |
+| `NOWPAYMENTS_API_KEY` | obrigatória |
+| `SUPABASE_SECRET_KEY` | obrigatória |
+| `APP_SECRET_KEY` | obrigatória, ≥ 32 chars |
+| `SUPABASE_URL` · `SUPABASE_PUBLISHABLE_KEY` | obrigatórias |
+| `NOWPAYMENTS_IPN_SECRET` | recomendada (créditos automáticos) |
+| `RATE_MT_PER_USDT` | opcional (80) |
+| `ENVIRONMENT` | `production` (activa cookies `Secure`) |
+| `BASE_URL` | **deixa vazia** — o URL público é derivado de `x-forwarded-host`, por isso os callbacks da NOWPayments saem com o domínio real da Vercel e não com `localhost` |
+
+Se faltar alguma obrigatória, o deploy **não rebenta**: sobe uma aplicação que
+responde `503` e mostra em `/health` o nome das variáveis em falta (nomes,
+nunca valores).
+
+Depois do deploy, usa o URL da Vercel como `ipn_callback_url` no painel da
+NOWPayments: `https://<o-teu-dominio>/api/webhooks/nowpayments`.
+
+---
+
+## 4. Arrancar
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -104,7 +138,7 @@ Documentação interactiva da API em `/docs`.
 
 ---
 
-## 4. Primeiro administrador
+## 5. Primeiro administrador
 
 Regista a tua conta em `http://localhost:8000` e depois:
 
@@ -117,7 +151,7 @@ python scripts/make_admin.py tu@exemplo.mz   # promover
 
 ---
 
-## 5. Fluxo de dinheiro
+## 6. Fluxo de dinheiro
 
 1. **Depósito** — o utilizador indica o valor em MT. O backend converte com a
    taxa (`RATE_MT_PER_USDT`, alterável pelo admin em `/api/admin/rate`), cria o
@@ -137,7 +171,7 @@ NOWPayments).
 
 ---
 
-## 6. Endpoints
+## 7. Endpoints
 
 | Método | Rota | Acesso |
 | --- | --- | --- |
@@ -157,13 +191,13 @@ ou header `Authorization: Bearer <access_token da Supabase>`.
 
 ---
 
-## 7. Testes
+## 8. Testes
 
 ```bash
 pytest -q
 ```
 
-106 testes. Correm contra uma Supabase e uma NOWPayments falsas em memória
+113 testes. Correm contra uma Supabase e uma NOWPayments falsas em memória
 (`tests/fakes.py`), por isso **não** precisam de rede nem de chaves reais e
 exercitam o código real de `app/services.py`, `app/db.py` e dos routers.
 Cobrem, entre outros:
@@ -177,11 +211,14 @@ Cobrem, entre outros:
 - levantamento sem saldo (409), aprovado, rejeitado com reembolso;
 - rate limiting de logins e registo em `login_logs`;
 - admin recusado a utilizadores normais (403);
-- cotação continua a responder quando a base de dados está inacessível.
+- cotação continua a responder quando a base de dados está inacessível;
+- regressões de deploy: `main.py` exporta `app`, `vercel.json` correcto,
+  configuração incompleta devolve 503 em vez de rebentar, e os callbacks da
+  NOWPayments usam o URL público do pedido.
 
 ---
 
-## 8. Estrutura
+## 9. Estrutura
 
 ```
 app/

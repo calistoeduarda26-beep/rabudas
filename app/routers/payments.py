@@ -5,11 +5,11 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.config import Settings, get_settings
 from app.db import SupabaseClient
-from app.deps import current_user, db_dep, profile_of, translate_business_error
+from app.deps import current_user, db_dep, request_base_url, translate_business_error
 from app.nowpayments import NOWPaymentsClient, NOWPaymentsError, get_nowpayments
 from app.schemas import PaymentCreateRequest, PaymentOut, as_money
 from app.services import BusinessError, create_payment, get_rate, list_payments, sync_payment
@@ -62,6 +62,7 @@ def quote(
 @router.post("", response_model=PaymentOut, status_code=201)
 def create(
     body: PaymentCreateRequest,
+    request: Request,
     user: dict = Depends(current_user),
     db: SupabaseClient = Depends(db_dep),
     settings: Settings = Depends(get_settings),
@@ -69,7 +70,13 @@ def create(
 ) -> PaymentOut:
     try:
         row = create_payment(
-            db, np_client, settings, user_id=user["user_id"], email=user["email"], request=body
+            db,
+            np_client,
+            settings,
+            user_id=user["user_id"],
+            email=user["email"],
+            request=body,
+            base_url=request_base_url(request, settings),
         )
     except BusinessError as exc:
         raise translate_business_error(exc) from exc

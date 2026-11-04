@@ -18,7 +18,9 @@ from app.routers.payouts import payout_out
 
 log = logging.getLogger("rabudas.admin")
 
-router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(current_admin)])
+#: `current_admin` e injectado em cada rota (da-nos o admin autenticado);
+#: nao se repete ao nivel do router para nao validar a sessao duas vezes.
+router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 @router.get("/stats", response_model=StatsOut)
