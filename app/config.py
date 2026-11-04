@@ -24,14 +24,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
 
 #: Variaveis que tem de existir e ter valor real para a app arrancar.
+#: `BASE_URL` e opcional: quando nao esta definida, o URL publico e derivado
+#: de cada pedido (x-forwarded-host), o que e o correcto em serverless.
 REQUIRED_VARS: tuple[str, ...] = (
     "NOWPAYMENTS_API_KEY",
     "SUPABASE_URL",
     "SUPABASE_PUBLISHABLE_KEY",
     "SUPABASE_SECRET_KEY",
     "APP_SECRET_KEY",
-    "BASE_URL",
-    "RATE_MT_PER_USDT",
 )
 
 #: Variaveis opcionais que, se nao estiverem preenchidas, degradam funcionalidade
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
 
     # --- App ---
     APP_SECRET_KEY: SecretStr = SecretStr("")
-    BASE_URL: str = "http://localhost:8000"
+    BASE_URL: str = ""
     RATE_MT_PER_USDT: float = Field(default=80.0, gt=0)
 
     # --- Servidor ---
@@ -153,7 +153,6 @@ class Settings(BaseSettings):
             "SUPABASE_PUBLISHABLE_KEY": self.SUPABASE_PUBLISHABLE_KEY,
             "SUPABASE_SECRET_KEY": self.SUPABASE_SECRET_KEY.get_secret_value(),
             "APP_SECRET_KEY": self.APP_SECRET_KEY.get_secret_value(),
-            "BASE_URL": self.BASE_URL,
             "RATE_MT_PER_USDT": str(self.RATE_MT_PER_USDT),
         }
         return [name for name in REQUIRED_VARS if not str(values.get(name, "")).strip()]

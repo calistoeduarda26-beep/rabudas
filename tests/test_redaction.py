@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+import pytest
+
 from app.logging_conf import REDACTED, RedactFilter, register_secrets, setup_logging
 
 
@@ -50,8 +52,10 @@ def test_mensagem_sem_segredo_nao_muda():
 
 
 def test_chaves_reais_do_env_nao_aparecem_em_logs():
-    from app.config import load_settings
+    from app.config import ENV_FILE, load_settings
 
+    if not ENV_FILE.exists():
+        pytest.skip(".env nao esta no git (gitignored); corre 'cp .env.example .env'")
     settings = load_settings(strict=True)
     register_secrets(
         settings.NOWPAYMENTS_API_KEY.get_secret_value(),

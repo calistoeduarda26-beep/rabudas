@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python",
+      "config": { "maxLambdaSize": "15mb", "runtime": "python3.12" }
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "main.py" }
+  ],
+  "functions": {
+    "main.py": { "memory": 512, "maxDuration": 30 }
+  },
+  "github": {
+    "silent": true
+  }
+}

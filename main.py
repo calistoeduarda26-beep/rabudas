@@ -10,6 +10,7 @@ e uma mensagem que lista apenas os NOMES das variaveis em falta.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -85,6 +86,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "environment": cfg.ENVIRONMENT,
             "rate_mt_per_usdt": cfg.RATE_MT_PER_USDT,
             "ipn_enabled": cfg.ipn_enabled,
+            "base_url": cfg.BASE_URL or "(derivado do pedido)",
+            "static_dir_found": STATIC_DIR.is_dir(),
+            "static_files": sorted(p.name for p in STATIC_DIR.glob("*.html")) if STATIC_DIR.is_dir() else [],
         }
 
     @app.get("/api/config", tags=["meta"])
@@ -123,6 +127,48 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
     return app
+
+
+def _build_default_app() -> FastAPI:
+    """Instancia `app` ao nivel do modulo.
+
+    Necessario para PaaS (Vercel, Railway, gunicorn, ...) que fazem
+    `from main import app`. Se a configuracao estiver incompleta, sobe uma
+    aplicacao que responde 503 com o motivo em vez de rebentar o build -
+    assim o deploy fica de pe e o erro e visivel no /health.
+    """
+    try:
+        return create_app()
+    except ConfigError as exc:
+        setup_logging(os.environ.get("ENVIRONMENT", "production"))
+        log.error("Configuracao incompleta: %s", exc)
+        # Nota: `exc` e apagada no fim do bloco except em Python 3, por isso
+        # guardamos a mensagem numa variavel propria para as closures abaixo.
+        motivo = str(exc)
+
+        broken = FastAPI(title="rabudas API (configuracao em falta)")
+
+        @broken.get("/health")
+        def broken_health() -> JSONResponse:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "config_missing", "detail": motivo},
+            )
+
+        @broken.api_route(
+            "/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
+        )
+        def broken_catch_all(path: str) -> JSONResponse:  # noqa: ARG001
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Configuracao em falta no servidor. Ver /health."},
+            )
+
+        return broken
+
+
+#: Ponto de entrada ASGI (Vercel procura exactamente este nome em main.py).
+app = _build_default_app()
 
 
 def main() -> int:

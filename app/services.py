@@ -195,6 +195,7 @@ def create_payment(
     user_id: str,
     email: str,
     request: PaymentCreateRequest,
+    base_url: str = "",
 ) -> dict:
     rate = get_rate(db, settings)
     amount_mt = normalize_mt(request.amount_mt)
@@ -218,7 +219,10 @@ def create_payment(
     }
     db.insert("payments", row)
 
-    base = settings.BASE_URL.rstrip("/")
+    base = (base_url or settings.BASE_URL).rstrip("/")
+    if not base:
+        base = "http://localhost:8000"
+        log.warning("BASE_URL nao definida nem derivavel do pedido; a usar %s", base)
     payload = {
         "price_amount": float(amount_usdt),
         "price_currency": "usd",

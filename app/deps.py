@@ -25,8 +25,31 @@ def db_dep(settings: Settings = Depends(get_settings)) -> SupabaseClient:
     return get_supabase(settings)
 
 
-def cookie_secure(settings: Settings = Depends(get_settings)) -> bool:
-    return settings.BASE_URL.lower().startswith("https://")
+def request_base_url(request: Request, settings: Settings) -> str:
+    """URL publico desta aplicacao.
+
+    Usa `BASE_URL` quando definida; caso contrario deriva do pedido
+    (`x-forwarded-host`/`x-forwarded-proto`), que e o comportamento correcto
+    atras de um proxy reverso ou em serverless (Vercel, Railway, ...).
+    """
+    if settings.BASE_URL:
+        return settings.BASE_URL.rstrip("/")
+
+    forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    forwarded_host = forwarded_host.split(",")[0].strip()
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").split(",")[0].strip()
+    if not forwarded_host:
+        return str(request.base_url).rstrip("/")
+    return f"{proto}://{forwarded_host}"
+
+
+def cookie_secure(request: Request, settings: Settings = Depends(get_settings)) -> bool:
+    """Cookie so com `Secure` quando o pedido chega por HTTPS."""
+    if settings.ENVIRONMENT == "production":
+        return True
+    if settings.BASE_URL.lower().startswith("https://"):
+        return True
+    return (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip() == "https"
 
 
 def _token_fingerprint(access_token: str) -> str:
