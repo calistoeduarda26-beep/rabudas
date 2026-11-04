@@ -44,7 +44,7 @@ def test_config_publico_nao_vaza_segredos(client, settings):
 def test_pagina_inicial_e_servida(client):
     resposta = client.get("/")
     assert resposta.status_code == 200
-    assert "rabudas" in resposta.text
+    assert "LubraCrypto" in resposta.text
 
 
 def test_quote_publico(client):
