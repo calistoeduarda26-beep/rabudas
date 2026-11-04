@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>rabudas — Administração</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-inline"><strong>rabudas</strong> <span class="muted tiny">admin</span></div>
+    <nav class="topbar-right">
+      <span id="whoami" class="muted"></span>
+      <a class="ghost" href="/dashboard.html">Painel</a>
+      <button id="logout" class="ghost">Sair</button>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <section class="stats">
+      <div class="stat"><span class="muted">Utilizadores</span><strong id="s-users">0</strong></div>
+      <div class="stat"><span class="muted">Depósitos pagos</span><strong id="s-paid">0</strong></div>
+      <div class="stat"><span class="muted">Creditado</span><strong id="s-credited">0 MT</strong></div>
+      <div class="stat"><span class="muted">Levantamentos pendentes</span><strong id="s-pending">0</strong></div>
+      <div class="stat"><span class="muted">Pago em levantamentos</span><strong id="s-paidout">0 MT</strong></div>
+    </section>
+
+    <section class="card">
+      <h2>Estado dos serviços</h2>
+      <pre id="health" class="mono small">A verificar…</pre>
+    </section>
+
+    <section class="card">
+      <h2>Taxa de câmbio</h2>
+      <form id="form-rate" class="row">
+        <label>MT por USDT
+          <input type="number" name="rate_mt_per_usdt" step="0.01" min="0.01" required />
+        </label>
+        <button type="submit" class="primary">Guardar</button>
+      </form>
+      <p class="muted tiny">Por omissão (do <code>.env</code>): <span id="env-rate">—</span></p>
+    </section>
+
+    <section class="card">
+      <h2>Levantamentos pendentes</h2>
+      <div class="table-wrap">
+        <table id="table-payouts">
+          <thead><tr><th>Data</th><th>Email</th><th>Valor</th><th>Método</th><th>Telefone</th><th>Acções</th></tr></thead>
+          <tbody><tr><td colspan="6" class="muted">A carregar…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Depósitos</h2>
+      <div class="table-wrap">
+        <table id="table-payments">
+          <thead><tr><th>Data</th><th>Ordem</th><th>Valor</th><th>Cripto</th><th>Estado</th><th>Creditado</th></tr></thead>
+          <tbody><tr><td colspan="6" class="muted">A carregar…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Utilizadores</h2>
+      <div class="table-wrap">
+        <table id="table-users">
+          <thead><tr><th>Email</th><th>Nome</th><th>Papel</th><th>Saldo</th><th>Acções</th></tr></thead>
+          <tbody><tr><td colspan="5" class="muted">A carregar…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Registo de logins</h2>
+      <div class="table-wrap">
+        <table id="table-logs">
+          <thead><tr><th>Data</th><th>Email</th><th>Resultado</th><th>Motivo</th><th>IP</th></tr></thead>
+          <tbody><tr><td colspan="5" class="muted">A carregar…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

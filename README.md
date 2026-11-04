@@ -1,1 +1,201 @@
 # rabudas
+
+Plataforma de pagamentos: **depósitos em criptomoeda** (NOWPayments) e
+**levantamentos em Meticais** (M-Pesa / e-Mola), com autenticação Supabase e
+painel de administração.
+
+- Backend: FastAPI (Python 3.11+)
+- Base de dados / auth: Supabase (PostgreSQL + GoTrue)
+- Pagamentos cripto: NOWPayments (USDT TRC-20 por omissão)
+- Frontend: HTML/CSS/JS estático servido pelo próprio backend
+
+---
+
+## 1. Configuração
+
+```bash
+cp .env.example .env      # e preenche os valores
+```
+
+O `.env` está no `.gitignore` — **nunca** é commitado. Se faltar alguma
+variável obrigatória, a aplicação **não arranca** e diz exactamente qual falta
+(mostra nomes de variáveis, nunca valores).
+
+| Variável | Onde pode ser usada | Obrigatória |
+| --- | --- | --- |
+| `NOWPAYMENTS_API_KEY` | só backend | sim |
+| `NOWPAYMENTS_PUBLIC_KEY` | frontend (se necessário) | não |
+| `NOWPAYMENTS_IPN_SECRET` | só backend (webhook IPN) | recomendada |
+| `SUPABASE_URL` | ambos | sim |
+| `SUPABASE_PUBLISHABLE_KEY` (`sb_publishable_…`) | navegador (login/registo) | sim |
+| `SUPABASE_SECRET_KEY` (`sb_secret_…`) | **só backend** | sim |
+| `APP_SECRET_KEY` | só backend (sessões assinadas) | sim, ≥ 32 chars |
+| `BASE_URL` | ambos | sim |
+| `RATE_MT_PER_USDT` | ambos (por omissão 80) | sim |
+
+Validar a configuração sem arrancar o servidor:
+
+```bash
+python -m app.config
+```
+
+Saída (repara que as chaves aparecem mascaradas):
+
+```
+INFO  rabudas.config :: Configuracao OK
+INFO  rabudas.config ::   NOWPAYMENTS_API_KEY        T4VF…YC (31 chars)
+INFO  rabudas.config ::   SUPABASE_SECRET_KEY        sb_s…Rv (41 chars)
+...
+WARN  rabudas.config ::   NOWPAYMENTS_IPN_SECRET     <vazio> - funcionalidade degradada
+```
+
+### Regras de segurança aplicadas no código
+
+- `SUPABASE_SECRET_KEY`, `NOWPAYMENTS_API_KEY` e `APP_SECRET_KEY` são
+  `pydantic.SecretStr`: não aparecem em `repr()`, em respostas da API nem em
+  logs. Um filtro de logging (`app/logging_conf.py`) apaga estes valores de
+  **qualquer** mensagem registada, mesmo que alguém os imprima por engano.
+- `/api/config` devolve apenas valores públicos (`supabaseUrl`,
+  `supabasePublishableKey`, `baseUrl`, taxa). Há testes que garantem que a
+  `sb_secret_…` e a API key da NOWPayments nunca aparecem em nenhuma resposta.
+- A escrita em `payments`, `payouts` e `login_logs` é feita **só** pelo backend
+  com a chave secreta. O navegador apenas autentica e chama a API.
+- O webhook IPN só é aceite com assinatura HMAC-SHA512 válida
+  (`x-nowpayments-sig`). Sem `NOWPAYMENTS_IPN_SECRET` configurado responde 503
+  e não toca na base de dados.
+
+> ⚠️ **Rotação de chaves**: estas chaves foram partilhadas em texto plano numa
+> conversa. Assim que possível, roda a `NOWPAYMENTS_API_KEY`, a
+> `SUPABASE_SECRET_KEY` e a `SUPABASE_PUBLISHABLE_KEY` nos respectivos painéis
+> e actualiza o `.env`.
+
+---
+
+## 2. Base de dados
+
+Abre **Supabase → SQL Editor → New query**, cola o conteúdo de
+[`supabase/schema.sql`](supabase/schema.sql) e corre. Cria:
+
+`profiles`, `payments`, `payouts`, `login_logs`, `settings`, as funções
+atómicas (`credit_balance`, `debit_balance`, `request_payout`, `settle_payout`)
+e as políticas de Row Level Security.
+
+Sem as funções SQL a aplicação continua a funcionar (usa actualização
+condicional com `balance_mt`), mas com elas as operações de saldo ficam
+atómicas — recomendado em produção.
+
+---
+
+## 3. Arrancar
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python main.py                 # http://localhost:8000
+```
+
+Ou directamente com uvicorn:
+
+```bash
+uvicorn main:create_app --factory --host 0.0.0.0 --port 8000 --reload
+```
+
+Documentação interactiva da API em `/docs`.
+
+---
+
+## 4. Primeiro administrador
+
+Regista a tua conta em `http://localhost:8000` e depois:
+
+```bash
+python scripts/make_admin.py --list          # ver utilizadores
+python scripts/make_admin.py tu@exemplo.mz   # promover
+```
+
+(Ou, no SQL Editor: `update public.profiles set role='admin' where email='tu@exemplo.mz';`)
+
+---
+
+## 5. Fluxo de dinheiro
+
+1. **Depósito** — o utilizador indica o valor em MT. O backend converte com a
+   taxa (`RATE_MT_PER_USDT`, alterável pelo admin em `/api/admin/rate`), cria o
+   pagamento na NOWPayments e mostra o endereço USDT.
+2. **Confirmação** — a NOWPayments envia um IPN para
+   `BASE_URL/api/webhooks/nowpayments`. A assinatura é verificada e o saldo é
+   creditado **uma única vez** (idempotente). Também é possível sincronizar
+   manualmente em `GET /api/payments/{id}`.
+3. **Levantamento** — o utilizador pede um levantamento (mínimo 200 MT). O
+   saldo é debitado na mesma transação. O admin aprova (paga por M-Pesa/e-Mola
+   manualmente) ou rejeita — e nesse caso o valor **volta ao saldo**.
+
+Para os IPN funcionarem a partir da internet, `BASE_URL` tem de ser um URL
+público com HTTPS (em desenvolvimento usa um túnel, por exemplo
+`ngrok http 8000`, e coloca o URL público em `BASE_URL` + no painel da
+NOWPayments).
+
+---
+
+## 6. Endpoints
+
+| Método | Rota | Acesso |
+| --- | --- | --- |
+| GET | `/health` | público |
+| GET | `/api/config` | público (só valores públicos) |
+| GET | `/api/payments/quote?amount_mt=` | público |
+| POST | `/api/auth/signup` · `/api/auth/login` · `/api/auth/session` | público |
+| GET | `/api/auth/me` · POST `/api/auth/logout` | sessão |
+| POST/GET | `/api/payments` · GET `/api/payments/{id}` | sessão |
+| POST/GET | `/api/payouts` | sessão |
+| POST | `/api/webhooks/nowpayments` | assinatura HMAC |
+| GET | `/api/admin/stats` · `/payouts` · `/payments` · `/users` · `/login-logs` · `/rate` · `/health-check` | admin |
+| POST | `/api/admin/payouts/{id}/decision` · `/api/admin/users/{id}/role` · PUT `/api/admin/rate` | admin |
+
+Autenticação: cookie httpOnly `rabudas_session` assinado com `APP_SECRET_KEY`,
+ou header `Authorization: Bearer <access_token da Supabase>`.
+
+---
+
+## 7. Testes
+
+```bash
+pytest -q
+```
+
+106 testes. Correm contra uma Supabase e uma NOWPayments falsas em memória
+(`tests/fakes.py`), por isso **não** precisam de rede nem de chaves reais e
+exercitam o código real de `app/services.py`, `app/db.py` e dos routers.
+Cobrem, entre outros:
+
+- falha de arranque quando falta uma variável do `.env` ou está um placeholder;
+- chaves mascaradas em `repr()`, em logs e fora de `/api/config`;
+- `.env` ignorado pelo git (`git check-ignore`);
+- assinatura IPN válida / adulterada / com segredo errado;
+- conversão MT ↔ USDT e validação de números moçambicanos;
+- depósito → IPN → crédito de saldo uma única vez;
+- levantamento sem saldo (409), aprovado, rejeitado com reembolso;
+- rate limiting de logins e registo em `login_logs`;
+- admin recusado a utilizadores normais (403);
+- cotação continua a responder quando a base de dados está inacessível.
+
+---
+
+## 8. Estrutura
+
+```
+app/
+  config.py          # pydantic-settings; falha se faltar algo obrigatório
+  logging_conf.py    # logging com redacção obrigatória de segredos
+  db.py              # cliente Supabase (PostgREST + GoTrue) — só backend
+  nowpayments.py     # cliente NOWPayments + verificação de assinatura IPN
+  security.py        # sessões assinadas, rate limiting, MT/USDT, telefones
+  services.py        # regras de negócio (depósitos, créditos, levantamentos)
+  schemas.py         # modelos Pydantic
+  deps.py            # dependências FastAPI (auth, admin, base de dados)
+  routers/           # auth, payments, payouts, admin, webhooks
+static/              # index.html, dashboard.html, admin.html, css, js
+supabase/schema.sql  # tabelas, funções SQL e RLS
+scripts/make_admin.py
+tests/               # 106 testes com serviços externos falsos
+```
